@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/VHS1024/agent-assessment/docs/report.schema.json",
+  "title": "漏洞复测报告 outputs/report.json",
+  "description": "report.json 是 LLM 会读取的产物，因此只允许数值、布尔、枚举与短哈希；不允许出现任意长度的目标站点文本。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run_id", "generated_at", "rules_version", "target_base", "integrity", "results", "summary", "needs_attention"],
+  "properties": {
+    "run_id": {"type": "string", "pattern": "^[0-9]{14}-[0-9]+(\\.[0-9]+)?(-adhoc)?$"},
+    "generated_at": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{4}$"},
+    "rules_version": {"type": "string", "maxLength": 16},
+    "target_base": {"type": "string", "maxLength": 200},
+    "needs_attention": {"type": "boolean"},
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "manifest_sha256", "pinned_by", "changed_files"],
+      "properties": {
+        "status": {"enum": ["OK", "DRIFT", "TAMPERED", "UNPINNED"]},
+        "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "pinned_by": {"enum": ["env", "file", null]},
+        "changed_files": {"type": "array", "items": {"type": "string", "maxLength": 120}, "maxItems": 100}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "VULNERABLE", "SURFACE_PATCH", "WAF_FULL_BLOCK", "PATCHED", "INCONCLUSIVE"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "VULNERABLE": {"type": "integer", "minimum": 0},
+        "SURFACE_PATCH": {"type": "integer", "minimum": 0},
+        "WAF_FULL_BLOCK": {"type": "integer", "minimum": 0},
+        "PATCHED": {"type": "integer", "minimum": 0},
+        "INCONCLUSIVE": {"type": "integer", "minimum": 0}
+      }
+    },
+    "results": {"type": "array", "items": {"$ref": "#/$defs/result"}}
+  },
+  "$defs": {
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vuln_id", "title", "type", "verdict", "metrics", "rule_refs", "evidence"],
+      "properties": {
+        "vuln_id": {"type": "string", "pattern": "^[A-Za-z0-9_.-]{1,40}$"},
+        "title": {"type": "string", "maxLength": 120},
+        "type": {"type": "string", "pattern": "^[a-z_]{1,40}$"},
+        "verdict": {"type": "string", "pattern": "^[A-Z_]{1,40}$"},
+        "rule_refs": {"type": "array", "items": {"type": "string", "pattern": "^R-[A-Z0-9-]+$"}, "maxItems": 4},
+        "evidence": {"type": "array", "items": {"type": "string", "pattern": "^evidence/[0-9.-]+/probe_[A-Za-z0-9_.-]+\\.json$"}, "maxItems": 20},
+        "metrics": {
+          "type": "object",
+          "maxProperties": 24,
+          "propertyNames": {"pattern": "^[a-z0-9_]{1,40}$"},
+          "additionalProperties": {
+            "anyOf": [
+              {"type": ["number", "boolean", "null"]},
+              {"type": "string", "pattern": "^[0-9a-f]{12}$"},
+              {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,31}$"},
+              {"type": "string", "pattern": "^[a-z_]{1,24}$"},
+              {"type": "array", "maxItems": 8, "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,31}$|^RETEST_[A-Z0-9_]{1,40}$"}},
+              {"type": "string", "maxLength": 160, "description": "reason：由代码生成的固定中文说明，长度受限"}
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -3,7 +3,7 @@
     {
       "id": "VULN-2026-001",
       "title": "用户查询接口布尔盲注",
-      "endpoint": "http://172.17.0.1:8081/api/user",
+      "endpoint": "{{TARGET_BASE}}/api/user",
       "type": "boolean_blind",
       "history": "2026-08 渗透测试发现：id 参数注入 AND 1=1/1=2 响应内容显著不同，可逐位拖库",
       "rule_ref": "R-T1-01",
@@ -12,7 +12,7 @@
     {
       "id": "VULN-2026-002",
       "title": "搜索接口反射型 XSS（历史处置：WAF 关键字拦截）",
-      "endpoint": "http://172.17.0.1:8081/search",
+      "endpoint": "{{TARGET_BASE}}/search",
       "type": "reflection_diff",
       "history": "2026-08 修复记录声称「已上线 WAF 拦截 <script 关键字」——需区分实际修复与表层变更",
       "rule_ref": "R-T2-01",
@@ -20,12 +20,21 @@
     },
     {
       "id": "VULN-2026-003",
-      "title": "管理接口水平越权",
-      "endpoint": "http://172.17.0.1:8081/api/admin/secret",
+      "title": "管理接口越权访问（伪造凭据）",
+      "endpoint": "{{TARGET_BASE}}/api/admin/secret",
       "type": "idem_forge",
       "history": "2026-07 修复记录：统一鉴权中间件上线",
       "rule_ref": "R-T3-01",
-      "expected": "伪造 Cookie 与普通请求响应逐字节一致（统一 403）"
+      "expected": "伪造 Cookie 与普通请求均被拒绝，且响应逐字节一致（统一 403）"
+    },
+    {
+      "id": "VULN-2026-004",
+      "title": "订单接口水平越权（IDOR）",
+      "endpoint": "{{TARGET_BASE}}/api/orders",
+      "type": "idor",
+      "history": "2026-09 渗透测试发现：登录用户修改 id 参数即可读取他人订单",
+      "rule_ref": "R-IDOR-01",
+      "expected": "用户 A 的会话访问用户 B 的订单被拒绝（401/403/404）；需配置 RETEST_SESSION_A / RETEST_SESSION_B"
     }
   ]
 }

@@ -4,6 +4,9 @@ package retest.v1;
 // 漏洞复测探针能力：受控 HTTP 请求 + 确定性响应度量。
 // 设计原则：探针只做「测量」，不做「判定」——判定由 Agent 侧确定性代码（src/pipeline.py）完成，
 // 保证 LLM/网关/判定脚本三层职责分离，且每次探测在 OctoBus 留有审计记录。
+//
+// v1.1 兼容性：新增字段均为追加（字段号 6 / 8 / 9），旧客户端忽略即可；
+// 判定侧遇到缺少 hits 的旧探针响应时按「证据不足」降级（不会据此判 PATCHED）。
 service RetestService {
   rpc ProbeHttp(ProbeHttpRequest) returns (ProbeHttpResponse);
 }
@@ -14,14 +17,23 @@ message ProbeHttpRequest {
   map<string, string> headers = 3;   // 附加请求头
   string body = 4;                   // 请求体（GET/HEAD 忽略）
   int32 timeout_ms = 5;              // 超时，默认 8000
+  repeated string search_terms = 6;  // 在【完整响应体】内检索的特征串（至多 8 个、每个至多 256 字符）
+}
+
+message TermHit {
+  string term = 1;                   // 被检索的特征串（原样回显）
+  int32 count = 2;                   // 在响应体内的出现次数（0 = 未出现；protojson 省略零值）
+  string context = 3;                // 首个命中点前后各 60 字符（仅供人工取证，判定只用 count）
 }
 
 message ProbeHttpResponse {
   int32 status = 1;                  // HTTP 状态码
   map<string, string> headers = 2;   // 响应头（原样，动态字段由判定侧剥离）
-  int32 body_length = 3;             // 响应体字节数
-  string body_sha256 = 4;            // 响应体 SHA-256（用于一致性比对，如 IDOR 统一 403）
-  string body_excerpt = 5;           // 响应体前 200 字符（控制字符已消毒，供特征串检查）
+  int32 body_length = 3;             // 读取到的响应体字节数（truncated=true 时为上限值）
+  string body_sha256 = 4;            // 读取到的响应体 SHA-256（用于一致性比对，如 IDOR 统一 403）
+  string body_excerpt = 5;           // 响应体前 200 字符（控制字符已消毒，仅供人工查看）
   double elapsed_ms = 6;             // 耗时
-  string error = 7;                  // 非空 = 传输层失败（白名单拒绝/DNS/超时/拒连），此时 status=0；空 = 探测成功
+  string error = 7;                  // 非空 = 传输层失败（白名单拒绝/DNS/超时/拒连/限速），此时 status=0；空 = 探测成功
+  repeated TermHit hits = 8;         // search_terms 的全文检索结果（与请求同序）
+  bool truncated = 9;                // 响应体超过 maxBodyBytes 被截断（此时长度/哈希不可用于一致性结论）
 }

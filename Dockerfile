@@ -9,9 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 复制并安装 Python 依赖
-COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+# 运行期仅用 Python 标准库，无需安装任何第三方依赖（开发依赖由 uv 管理，见 pyproject.toml / uv.lock）
 
 # 创建非 root 用户
 RUN useradd -m -u 1000 agent

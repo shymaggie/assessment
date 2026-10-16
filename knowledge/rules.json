@@ -1,7 +1,7 @@
 {
-  "version": "1.0",
-  "updated": "2026-09-30",
-  "note": "本文件是 pipeline.py 的唯一判据来源（机器可读）。人类可读版见 01_rules.md，两者规则 ID 一一对应。pipeline 启动时加载全部键，缺失键直接报错退出——保证「声明的规则被代码真实消费」。",
+  "version": "2.0",
+  "updated": "2026-10-13",
+  "note": "本文件是 pipeline 的唯一判据来源（机器可读）。人类可读版见 01_rules.md，两者规则 ID 一一对应（CI 中 tools/check_rules_consistency.py 强制校验）。pipeline 启动时加载全部键，缺失键直接报错退出——保证「声明的规则被代码真实消费」。data/vulns.json 的 rules 字段可按漏洞覆盖本文件各分区的同名键（浅合并）。",
   "header_strip": [
     "date",
     "server",
@@ -17,8 +17,16 @@
     "expect_status": 200,
     "gray_zone": "INCONCLUSIVE",
     "empty_body_rule_id": "R-T1-04",
-    "note": "双阈值：ratio==0 且 body sha256 相等（逐字节一致）→ PATCHED；>=0.5 → VULNERABLE；其余（含等长但内容不同）→ INCONCLUSIVE。靶场对无注入标记的请求返回 400（R-T1-02），探针打偏表现为状态异常而非假阴性；空响应体（真探针长度 0）不构成判定依据，判 INCONCLUSIVE（R-T1-04）",
-    "threshold_basis": "实测双峰分离（仓库内 7 轮一致，复算命令与口径见 01_rules.md R-T1-03（仓库内 7 轮有效采样）；证据见 evidence/*/probe_VULN-2026-001_{tautology,contradiction}.json）：未修复态 len(1=1)=72B、len(1=2)=27B，ratio=|delta|/len_true=45/72=0.625，且两响应 sha256 不同；已修复态两响应 sha256 全等、ratio=0。故阈值只需落在开区间 (0, 0.625) 内即可分离两态。取 0.5 的理由：① 位于分离带 0.8 分位，偏保守侧——长度差异不足时倾向 INCONCLUSIVE 转人工，而非贸然判 VULNERABLE；② 敏感性与安全性已回归验证：阈值取 0.05~0.625 结论恒为 VULNERABLE，取 0.63~1.00 恒为 INCONCLUSIVE，任意取值下都不会出现 PATCHED——上调阈值只增加人工复核量，不产生假阳性。",
+    "baseline_rule_id": "R-T1-05",
+    "stability_rule_id": "R-T1-06",
+    "truncated_rule_id": "R-T1-07",
+    "param": "id",
+    "true_payload": "1 AND 1=1",
+    "false_payload": "1 AND 1=2",
+    "baseline_value": "1",
+    "repeats": 3,
+    "note": "双阈值：ratio==0 且 body sha256 相等（逐字节一致）→ PATCHED；>=0.5 → VULNERABLE；其余（含等长但内容不同）→ INCONCLUSIVE。v2 增强：基线请求（R-T1-05）校验 payload 是否按预期生效，重复采样（R-T1-06）排除动态页面，响应截断（R-T1-07）转人工。靶场对无注入标记的请求返回 400（R-T1-02），探针打偏表现为状态异常而非假阴性；空响应体（真探针长度 0）不构成判定依据，判 INCONCLUSIVE（R-T1-04）",
+    "threshold_basis": "实测双峰分离（仓库内 7 轮一致，复算命令与口径见 01_rules.md R-T1-03（仓库内 7 轮有效采样）；证据见 evidence/*/probe_VULN-2026-001_{tautology,contradiction}.json）：未修复态 len(1=1)=72B、len(1=2)=27B，ratio=|delta|/len_true=45/72=0.625，且两响应 sha256 不同；已修复态两响应 sha256 全等、ratio=0。故阈值只需落在开区间 (0, 0.625) 内即可分离两态。取 0.5 的理由：① 位于分离带 0.8 分位，偏保守侧——长度差异不足时倾向 INCONCLUSIVE 转人工，而非贸然判 VULNERABLE；② 敏感性与安全性已回归验证：阈值取 0.05~0.625 结论恒为 VULNERABLE，取 0.63~1.00 恒为 INCONCLUSIVE，任意取值下都不会出现 PATCHED——上调阈值只增加人工复核量，不产生假阳性。注意：该标定仅针对确定性靶场；用于动态页面前须在目标上重新采样标定（见 01_rules.md R-T1-03），并依赖基线与重复采样兜底。",
     "separation_observed": {
       "samples": 7,
       "len_true": 72,
@@ -31,16 +39,38 @@
   },
   "t2": {
     "rule_id": "R-T2-01",
-    "block_status": 403,
-    "block_marker": "WAF-BLOCK",
-    "reflect_marker": "onerror=alert(1)",
+    "escaped_rule_id": "R-T2-02",
+    "inert_rule_id": "R-T2-03",
+    "block_statuses": [403],
+    "block_markers": ["WAF-BLOCK"],
     "expect_status": 200,
+    "param": "q",
+    "literal_payload": "<script>alert(1)</script>",
+    "variant_payload": "<img src=x onerror=alert(1)>",
+    "literal_escaped_marker": "&lt;script",
+    "variant_escaped_marker": "&lt;img",
+    "executable_content_types": ["text/html", "application/xhtml+xml"],
     "full_block_verdict": "WAF_FULL_BLOCK",
-    "note": "四态：双拦 = WAF_FULL_BLOCK（拦截面完整仅为真实修复的必要条件，不并入 PATCHED）"
+    "note": "v2：反射判断基于探针对【完整响应体】的特征串检索（hits），不再依赖 200 字符摘要，也不再把「WAF 未生效」直接等同于 VULNERABLE。reflected = 完整 HTML 破坏型 payload（含 < >）被原样回显；escaped = 原串缺失且编码串出现（输出编码的正向证据）。四态 + 编码修复：双拦 = WAF_FULL_BLOCK（拦截面完整仅为真实修复的必要条件，不并入 PATCHED）；双编码 = PATCHED。block_statuses/block_markers 可按漏洞覆盖，适配不同 WAF。"
   },
   "t3": {
     "rule_id": "R-T3-01",
-    "forbidden_status": 403
+    "deny_statuses": [401, 403],
+    "forged_headers": {"Cookie": "admin=1"},
+    "note": "越权访问（无凭据 vs 伪造凭据）：plain 为 2xx 或 forged 为 2xx → VULNERABLE；二者均被拒且逐字节一致 → PATCHED；均被拒但有差异 / 其它状态 → INCONCLUSIVE。水平越权（IDOR）见 idor 分区。"
+  },
+  "idor": {
+    "rule_id": "R-IDOR-01",
+    "control_rule_id": "R-IDOR-02",
+    "ok_statuses": [200],
+    "deny_statuses": [401, 403, 404],
+    "auth_header": "Cookie",
+    "session_a_env": "RETEST_SESSION_A",
+    "session_b_env": "RETEST_SESSION_B",
+    "id_param": "id",
+    "own_id": "1",
+    "victim_id": "2",
+    "note": "水平越权（IDOR）双会话复测：A 访问 A 的对象（控制）、A 访问 B 的对象（被测）、B 访问 B 的对象（参照）。cross 与 victim 逐字节一致 → VULNERABLE；cross 被拒 → PATCHED；控制探针失败/对象不可区分 → INCONCLUSIVE。会话凭据仅来自环境变量，缺失即 INCONCLUSIVE。"
   },
   "ratio_rule": {
     "rule_id": "R-CALC-01",
@@ -55,6 +85,15 @@
   "error_policy": {
     "rule_id": "R-ERR-01",
     "on_transport_error": "INCONCLUSIVE",
-    "why": "探针传输层失败（网关失败/白名单拒绝/超时/拒连）不推断漏洞状态，判 INCONCLUSIVE 转人工复核。本值被 pipeline._inconclusive 真实消费：修改此值会直接改变报告输出"
+    "why": "探针传输层失败（网关失败/白名单拒绝/超时/拒连/限速）不推断漏洞状态，判 INCONCLUSIVE 转人工复核。本值被 pipeline.inconclusive 真实消费：修改此值会直接改变报告输出"
+  },
+  "integrity_rule": {
+    "rule_id": "R-INT-01",
+    "why": "判定代码与判据的 sha256 清单必须与固定值一致（环境变量 RETEST_PINNED_MANIFEST_SHA256 优先，其次 integrity/pins.json）；环境变量固定值不一致 → 拒绝运行；文件固定值不一致 → 报告标 DRIFT 并要求人工关注。用于发现 Agent 或他人对判定逻辑的篡改。"
+  },
+  "retention": {
+    "rule_id": "R-RET-01",
+    "keep_last_runs": 336,
+    "why": "每小时一轮证据会无限增长。仅清理形如 YYYYMMDDhhmmss-pid 的运行目录，保留最近 keep_last_runs 轮；含 PINNED 标记文件或被 git 跟踪的目录永不清理。"
   }
 }

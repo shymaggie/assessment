@@ -1,0 +1,9 @@
+[Unit]
+Description=Retest alert notifier timer
+
+[Timer]
+OnCalendar=*:05
+Persistent=true
+
+[Install]
+WantedBy=timers.target

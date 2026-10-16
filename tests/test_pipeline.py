@@ -4,7 +4,6 @@
 rules.json 必需键校验、探针矩阵 URL 构造。
 """
 
-import json
 import sys
 from pathlib import Path
 
@@ -33,9 +32,11 @@ def _probe(status=200, length=100, sha="a" * 64, excerpt="", error="", headers=N
 def test_rules_required_keys(rules):
     assert rules["header_strip"]
     assert "ratio_threshold" in rules["t1"] and "expect_status" in rules["t1"]
-    for key in ("block_status", "block_marker", "reflect_marker", "expect_status"):
+    for key in ("block_statuses", "block_markers", "literal_payload", "variant_payload",
+                "literal_escaped_marker", "variant_escaped_marker", "expect_status"):
         assert key in rules["t2"]
-    assert "forbidden_status" in rules["t3"]
+    assert "deny_statuses" in rules["t3"]
+    assert "ok_statuses" in rules["idor"]
     assert rules["error_policy"]["on_transport_error"] == "INCONCLUSIVE"
 
 
@@ -167,48 +168,73 @@ def test_t3_vulnerable_data_difference(rules):
     assert out["verdict"] == "VULNERABLE"
 
 
-def test_t3_header_difference_only(rules):
-    # 体相同但剥离后响应头不同 → 存在差异面 → VULNERABLE
+def test_t3_header_difference_only_is_inconclusive(rules):
+    # 体相同但剥离后响应头不同：拒绝成立、但存在差异面 → 转人工（旧版一律判 VULNERABLE，
+    # 会把「拒绝成立」的目标误报为漏洞）
     out = pipeline.judge_t3(
         _probe(status=403, sha="f" * 64, headers={"content-type": "text/plain"}),
         _probe(status=403, sha="f" * 64, headers={"content-type": "application/json"}),
         rules)
-    assert out["verdict"] == "VULNERABLE"
+    assert out["verdict"] == "INCONCLUSIVE"
+    assert out["metrics"]["reason_code"] == "DENIED_BUT_DIFFERENT"
 
 
 # ── 探针矩阵（URL 构造正确性 + 网关级失败兜底）──
 
-def test_probe_matrix_urls(monkeypatch):
-    captured = []
-
-    def fake_probe(url, rid, seq, method="GET", headers=None, timeout_ms=8000):
-        captured.append((url, headers or {}))
+def _fake_gateway_probe(captured):
+    def fake_probe(url, rid, seq, method="GET", headers=None, timeout_ms=8000, search_terms=None):
+        captured.append((url, headers or {}, search_terms or []))
         return _probe()
-
-    monkeypatch.setattr(pipeline.call_octobus, "probe_http", fake_probe)
-    for kind in ("boolean_blind", "reflection_diff", "idem_forge"):
-        pipeline.probe_matrix({"endpoint": "http://172.17.0.1:8081/x", "type": kind})
-    urls = [u for u, _ in captured]
-    assert "1%3D1" in urls[0] and "1%3D2" in urls[1]
-    assert "script" in urls[2] and "onerror" in urls[3]
-    assert captured[5][1].get("Cookie") == "admin=1"
+    return fake_probe
 
 
-def test_probe_matrix_gateway_failure_degrades(monkeypatch):
+def test_probe_matrix_urls(rules, monkeypatch):
+    captured = []
+    monkeypatch.setattr(pipeline.call_octobus, "probe_http", _fake_gateway_probe(captured))
+    ep = "http://172.17.0.1:8081/x"
+    pipeline.probe_matrix({"id": "a", "endpoint": ep, "type": "boolean_blind"}, rules)
+    t1_urls = [u for u, _, _ in captured]
+    assert "1%20AND%201%3D1" in t1_urls[0] and "1%20AND%201%3D2" in t1_urls[1]
+    assert t1_urls[2].endswith("?id=1")                       # 基线
+    assert len(t1_urls) == 3 + 2 * (rules["t1"]["repeats"] - 1)  # 重复采样
+
+    captured.clear()
+    pipeline.probe_matrix({"id": "b", "endpoint": ep, "type": "reflection_diff"}, rules)
+    assert "script" in captured[0][0] and "onerror" in captured[1][0]
+    assert captured[0][2] and captured[1][2]                    # 带全文检索特征串
+
+    captured.clear()
+    pipeline.probe_matrix({"id": "c", "endpoint": ep, "type": "idem_forge"}, rules)
+    assert captured[1][1].get("Cookie") == "admin=1"
+
+
+def test_probe_matrix_endpoint_placeholder_and_overrides(rules, monkeypatch):
+    captured = []
+    monkeypatch.setattr(pipeline.call_octobus, "probe_http", _fake_gateway_probe(captured))
+    monkeypatch.setenv("RETEST_TARGET_BASE", "http://10.0.0.9:9000/")
+    vuln = {"id": "d", "endpoint": "{{TARGET_BASE}}/api/u", "type": "boolean_blind",
+            "params": {"param": "uid", "repeats": 1},
+            "rules": {"t1": {"true_payload": "1 OR 1=1"}}}
+    pipeline.probe_matrix(vuln, rules)
+    assert captured[0][0] == "http://10.0.0.9:9000/api/u?uid=1%20OR%201%3D1"
+    assert len(captured) == 3
+
+
+def test_probe_matrix_gateway_failure_degrades(rules, monkeypatch):
     # 网关级失败（token 失效/OctoBus 宕机）不抛出逃逸：结构化降级 → R-ERR-01 路径
-    def boom(url, rid, seq, method="GET", headers=None, timeout_ms=8000):
+    def boom(url, rid, seq, **kw):
         raise RuntimeError("HTTP 403: token expired")
 
     monkeypatch.setattr(pipeline.call_octobus, "probe_http", boom)
-    steps = pipeline.probe_matrix({"endpoint": "http://172.17.0.1:8081/x",
-                                   "type": "boolean_blind"})
+    steps = pipeline.probe_matrix({"id": "e", "endpoint": "http://172.17.0.1:8081/x",
+                                   "type": "boolean_blind"}, rules)
     assert all(s[1]["error"].startswith("GATEWAY:") for s in steps)
     assert all(s[1]["status"] == 0 for s in steps)
 
 
-def test_probe_matrix_unknown_type():
+def test_probe_matrix_unknown_type(rules):
     with pytest.raises(SystemExit):
-        pipeline.probe_matrix({"endpoint": "http://x", "type": "unknown_kind"})
+        pipeline.probe_matrix({"endpoint": "http://x", "type": "unknown_kind"}, rules)
 
 
 # ── P-13 零值省略回归（桩位必须落在 HTTP 边界 call_method，不得桩 subtract 本身）──

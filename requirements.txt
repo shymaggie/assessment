@@ -1,4 +1,0 @@
-# 开发/测试依赖（运行期 Agent 不需要：判定管线仅用 Python 标准库）
-# 运行环境要求 Python >= 3.10（src/call_octobus.py 使用了 `dict | None` 联合类型语法；
-# 线上 guest 容器为 Python 3.11）
-pytest>=8.0

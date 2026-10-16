@@ -5,6 +5,21 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "出口白名单：host 或 host:port 形式。探针仅允许请求名单内目标，不在名单直接拒绝——网关方法授权之外的第二层出口控制。"
+    },
+    "allowedCidrs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "可选：目标解析后的 IPv4 地址必须落在这些 CIDR（如 172.17.0.0/16）内；校验通过的解析结果即实际连接地址，防 DNS 重绑定。云元数据/链路本地/组播地址无论如何配置恒拒。"
+    },
+    "maxBodyBytes": {
+      "type": "integer",
+      "minimum": 1024,
+      "description": "单次响应体读取上限（字节），默认 1048576。超限即中断读取并在响应中置 truncated=true。"
+    },
+    "maxRequestsPerMinute": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "实例级速率限制（令牌桶），默认 120。超限返回 error=RATE_LIMITED。"
     }
   }
 }

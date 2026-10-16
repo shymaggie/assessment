@@ -1,10 +1,16 @@
 {
   "name": "octobus-retest-probe",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "bin": {
     "retest-probe": "bin/probe.js"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  },
+  "engines": {
+    "node": ">=18.17"
   },
   "dependencies": {
     "@chaitin-ai/octobus-sdk": "^0.5.0"

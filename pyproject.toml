@@ -1,0 +1,59 @@
+[project]
+name = "agent-assessment"
+version = "2.1.0"
+description = "漏洞复测 Agent：确定性判定管线 + OctoBus 受控探针 + agent-compose 编排"
+readme = "README.md"
+# 运行期下限 3.10：生产宿主机是 Ubuntu 22.04，系统 python3 为 3.10.12，deploy/retest-pipeline.service
+# 直接用它跑管线（Canonical 对 22.04 的支持到 2027）。上游 CPython 3.10 已 EOL，所以：
+#   - 运行期代码保持 3.10 兼容并在 CI 中持续验证；
+#   - 开发工具链（ruff/hypothesis 等）不受此约束，由 uv 管理，不会安装进生产环境。
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = []          # 运行期仅用标准库，保持 guest 镜像零安装
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",   # 属性测试：fail-closed 不变量
+    "jsonschema>=4.22",    # 报告结构校验
+    "pyyaml>=6.0",         # agent-compose.yml 离线 schema 校验
+    "ruff>=0.6",           # lint + format check，取代 pyflakes
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["src", "tools", "vulnlab", "webui"]
+# webui/driver.py 与 labgate.py 只在子进程里运行（页面发起复测），需统计子进程才算得到真实覆盖
+parallel = true
+patch = ["subprocess"]
+
+[tool.coverage.report]
+fail_under = 90            # 当前约 95%；跌破 90% 时 CI 失败
+show_missing = true
+skip_empty = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+extend-exclude = ["services/retest-probe/node_modules"]
+
+[tool.ruff.lint]
+# E/F 基础；B bugbear；UP pyupgrade；I 导入排序；SIM 简化；RUF；S 安全（bandit 规则）
+select = ["E4", "E7", "E9", "F", "B", "UP", "I", "SIM", "RUF", "S"]
+ignore = [
+    "E501",                          # 行宽交给 formatter 之外的人工判断，中文注释较长
+    "RUF001", "RUF002", "RUF003",    # 中文全角标点是有意为之
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S108", "S310", "S603", "S607", "E741", "RUF012"]
+"tools/notify.py" = ["S310"]          # 目标 URL 经 validate_webhook 限定为 http/https
+"src/evidence.py" = ["S603", "S607"]  # 固定的 git 子命令，参数不含外部输入
+"webui/__main__.py" = ["UP036"]       # 有意保留：macOS 系统自带 Python 3.9，需给出友好提示而非堆栈
+
+[tool.ruff.lint.isort]
+known-first-party = ["common", "probes", "judges", "integrity", "evidence", "state", "call_octobus", "pipeline"]

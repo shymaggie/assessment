@@ -1,0 +1,118 @@
+{
+ "run_id": "20261013151645-27575",
+ "generated_at": "2026-10-13T15:16:45+0800",
+ "rules_version": "2.0",
+ "target_base": "http://127.0.0.1:62096",
+ "integrity": {
+  "status": "OK",
+  "manifest_sha256": "36bf1c725b47d959097e8d59c709ec0fbcb77dd95195e5508114826d64718118",
+  "pinned_by": "file",
+  "changed_files": []
+ },
+ "results": [
+  {
+   "vuln_id": "VULN-2026-001",
+   "title": "用户查询接口布尔盲注",
+   "type": "boolean_blind",
+   "verdict": "VULNERABLE",
+   "metrics": {
+    "len_true": 72,
+    "len_false": 27,
+    "delta": 45,
+    "ratio": 0.625,
+    "threshold": 0.5,
+    "sha_identical": false,
+    "sha_true": "38e272955835",
+    "sha_false": "fae340d3cd27",
+    "samples_per_payload": 3,
+    "baseline_used": true,
+    "true_matches_baseline": true
+   },
+   "rule_refs": [
+    "R-T1-01",
+    "R-CALC-01"
+   ],
+   "evidence": [
+    "evidence/20261013151645-27575/probe_VULN-2026-001_tautology.json",
+    "evidence/20261013151645-27575/probe_VULN-2026-001_contradiction.json",
+    "evidence/20261013151645-27575/probe_VULN-2026-001_baseline.json",
+    "evidence/20261013151645-27575/probe_VULN-2026-001_tautology_r2.json",
+    "evidence/20261013151645-27575/probe_VULN-2026-001_contradiction_r2.json",
+    "evidence/20261013151645-27575/probe_VULN-2026-001_tautology_r3.json",
+    "evidence/20261013151645-27575/probe_VULN-2026-001_contradiction_r3.json"
+   ]
+  },
+  {
+   "vuln_id": "VULN-2026-002",
+   "title": "搜索接口反射型 XSS（历史处置：WAF 关键字拦截）",
+   "type": "reflection_diff",
+   "verdict": "SURFACE_PATCH",
+   "metrics": {
+    "literal_state": "blocked",
+    "bypass_state": "reflected",
+    "waf_active": true,
+    "bypass_reflected": true,
+    "literal_status": 403,
+    "bypass_status": 200,
+    "executability_verified": false
+   },
+   "rule_refs": [
+    "R-T2-01"
+   ],
+   "evidence": [
+    "evidence/20261013151645-27575/probe_VULN-2026-002_literal_script.json",
+    "evidence/20261013151645-27575/probe_VULN-2026-002_variant_onerror.json"
+   ]
+  },
+  {
+   "vuln_id": "VULN-2026-003",
+   "title": "管理接口越权访问（伪造凭据）",
+   "type": "idem_forge",
+   "verdict": "PATCHED",
+   "metrics": {
+    "plain_status": 403,
+    "forged_status": 403,
+    "sha_identical": true,
+    "headers_identical": true
+   },
+   "rule_refs": [
+    "R-T3-01",
+    "R-STRIP-01"
+   ],
+   "evidence": [
+    "evidence/20261013151645-27575/probe_VULN-2026-003_plain.json",
+    "evidence/20261013151645-27575/probe_VULN-2026-003_forged_cookie.json"
+   ]
+  },
+  {
+   "vuln_id": "VULN-2026-004",
+   "title": "订单接口水平越权（IDOR）",
+   "type": "idor",
+   "verdict": "VULNERABLE",
+   "metrics": {
+    "own_status": 200,
+    "cross_status": 200,
+    "victim_status": 200,
+    "cross_equals_victim": true,
+    "own_equals_victim": false
+   },
+   "rule_refs": [
+    "R-IDOR-01"
+   ],
+   "evidence": [
+    "evidence/20261013151645-27575/probe_VULN-2026-004_own.json",
+    "evidence/20261013151645-27575/probe_VULN-2026-004_cross.json",
+    "evidence/20261013151645-27575/probe_VULN-2026-004_victim.json"
+   ]
+  }
+ ],
+ "summary": {
+  "total": 4,
+  "VULNERABLE": 2,
+  "SURFACE_PATCH": 1,
+  "WAF_FULL_BLOCK": 0,
+  "PATCHED": 1,
+  "INCONCLUSIVE": 0
+ },
+ "needs_attention": true
+}

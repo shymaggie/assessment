@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>复测工作台</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234F46E5'/%3E%3Crect x='9' y='9' width='14' height='14' rx='3' fill='none' stroke='white' stroke-width='2.5'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="nav" id="nav">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-text">复测工作台<small>Retest Console</small></span>
+    </div>
+    <nav class="nav-list" aria-label="主导航">
+      <a href="#/dashboard" data-route="dashboard">总览</a>
+      <a href="#/run" data-route="run">实时复测<i class="nav-dot" id="nav-dot" hidden></i></a>
+      <a href="#/checks" data-route="checks">检查项</a>
+      <a href="#/runs" data-route="runs">运行记录</a>
+      <a href="#/evidence" data-route="evidence">证据</a>
+      <a href="#/report" data-route="report">报告与完整性</a>
+      <a href="#/roadmap" data-route="roadmap">规划</a>
+    </nav>
+    <div class="nav-foot">
+      展示与触发层。判定全部由引擎的确定性规则产生，本页面不参与判定。
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="top" id="top">
+      <div class="top-title">
+        <h1 id="page-title">总览</h1>
+        <span class="top-sub" id="page-sub"></span>
+      </div>
+      <div class="top-right">
+        <span class="badge" id="b-source" hidden></span>
+        <span class="badge" id="b-integrity" hidden></span>
+        <span class="clock" id="clock" aria-live="off"></span>
+        <label class="sel">数据源
+          <select id="sel-source">
+            <option value="auto">自动</option>
+            <option value="real">真实结果</option>
+            <option value="lab">靶场运行</option>
+            <option value="demo">演示数据</option>
+          </select>
+        </label>
+        <button class="btn" id="btn-refresh" type="button">刷新</button>
+        <button class="btn btn-run" id="btn-run" type="button">开始复测</button>
+        <button class="btn btn-primary" id="btn-tv" type="button">大屏模式</button>
+      </div>
+    </header>
+
+    <div class="runbar" id="runbar" hidden></div>
+    <div class="banner" id="banner" hidden></div>
+    <main class="view" id="view" tabindex="-1"></main>
+    <footer class="status" id="status"></footer>
+  </div>
+</div>
+
+<button class="tv-exit" id="tv-exit" type="button" hidden>退出大屏</button>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<div class="overlay" id="overlay" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="详情"></aside>
+<div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-label="证据内容"></div>
+
+<script src="/charts.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

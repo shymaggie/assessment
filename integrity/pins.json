@@ -1,0 +1,15 @@
+{
+ "files": {
+  "data/vulns.json": "d6d9646e5e998f1457420f592481be9fd006539399885ad06c1fa285cf4a19e1",
+  "knowledge/rules.json": "34d139e3bf8ef839b096230c591d847518f258567abed66744fc65f8ea4ab9a7",
+  "src/call_octobus.py": "366a73e5246ab3a34e8424b8a685e77438c5b05626c5298ec0c1332d0d7f8827",
+  "src/common.py": "f167368ef2625df36bf035ce27bec1c99ec783043fa3acd554074029ec8cf499",
+  "src/evidence.py": "01f15930651eb7a565c8a611466e26671d732d903dfcd23d63de8f01ceb2e744",
+  "src/integrity.py": "cc67218651156ea557c84cdbb55c52ed515e8ae73e67108dbbc69a4ba59216ef",
+  "src/judges.py": "054f516d2843963a2878bfac60f4aa37fe055c5d5c96787afc6d85a0e75bac37",
+  "src/pipeline.py": "fc32c17341d6caf9cebb64086b65847f39aa61e0692cf1ee212957e46cc26aca",
+  "src/probes.py": "78cf551953d2772400a149654f643ce029a8c1e755c5457d0bb954d4be24d0f1",
+  "src/state.py": "7d1ba460b57104ef5b404e9cf1c2011bced190fce4aac9f8846aacd62d51e9b2"
+ },
+ "manifest_sha256": "56a5b3f57204cdae61a8c24bff660dcfecce6e2645593b3e885338d5e7d5620e"
+}

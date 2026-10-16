@@ -1,0 +1,22 @@
+# 可选：pip install pre-commit && pre-commit install
+# 提交前在本机跑与 CI 相同的检查（本地 hook，使用 uv 锁定的版本，避免与 CI 版本漂移）。
+repos:
+  - repo: local
+    hooks:
+      - id: lint
+        name: ruff + compile
+        entry: make lint
+        language: system
+        pass_filenames: false
+      - id: rules-consistency
+        name: rules.json <-> 01_rules.md
+        entry: make rules-check
+        language: system
+        pass_filenames: false
+        files: ^(knowledge/|data/)
+      - id: integrity
+        name: integrity pins current (run `make pin` after review)
+        entry: make integrity
+        language: system
+        pass_filenames: false
+        files: ^(src/|knowledge/rules\.json|data/vulns\.json|integrity/)

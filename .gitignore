@@ -12,7 +12,27 @@ __pycache__/
 *.pyc
 
 .pytest_cache/
+node_modules/
 
 # 定时轮次会自动产生，仓库只保留人工收录的快照，
 # 避免声明数字随自动增长漂移（收录时用 git add -f）
 /evidence/2*/
+
+# 运行产物：每轮由管线覆盖/追加，不入库（否则服务器上 git status 长期 dirty）。
+# 参考快照见 docs/sample-output/。
+/outputs/*
+!/outputs/.gitkeep
+
+# agent-compose 运行数据 bind 目录（guest 的 /var/lib/retest）：outputs/ 与 evidence/ 都在其下
+/runtime/*
+!/runtime/.gitkeep
+# Web 工作台「靶场演示扫描」的独立数据目录（与真实结果隔离）
+/lab/
+
+# 本地测试产物
+.coverage
+htmlcov/
+
+# uv 虚拟环境与缓存
+.venv/
+.ruff_cache/

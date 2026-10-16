@@ -1,0 +1,24 @@
+# 宿主机侧确定性复测（可选）：不经 LLM 直接跑 pipeline，配合 retest-pipeline.timer 每小时一次。
+# 与 agent-compose 的 LLM 触发器互补：本单元保证「取证与判定」不依赖模型可用性/成本，
+# LLM 触发器只负责对变化做解读。
+#
+# 安装：
+#   sudo cp deploy/retest-pipeline.{service,timer} /etc/systemd/system/
+#   sudo sed -i "s#/home/agentadmin/agent-assessment#$(pwd)#g" /etc/systemd/system/retest-pipeline.*
+#   sudo systemctl daemon-reload && sudo systemctl enable --now retest-pipeline.timer
+[Unit]
+Description=Retest pipeline (deterministic, no LLM)
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/agentadmin/agent-assessment
+# 宿主机不在 docker 服务名解析范围内，网关地址须用 docker0 地址；OCTOBUS_ENV_MODE=fill 表示
+# .env 只补缺、不覆盖这里显式给出的值。
+Environment=OCTOBUS_BASE_URL=http://172.17.0.1:9000
+Environment=OCTOBUS_ENV_MODE=fill
+# 与 agent-compose 的 guest 共用同一数据目录（guest 内为 /var/lib/retest，宿主机为 <项目>/runtime）
+Environment=RETEST_DATA_DIR=/home/agentadmin/agent-assessment/runtime
+ExecStart=/usr/bin/python3 src/pipeline.py
+# 判定代码被篡改时（TAMPERED）管线以非零退出，由 systemd 标记失败，便于监控接入
+User=agentadmin

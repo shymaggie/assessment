@@ -2,11 +2,12 @@
 
 > 配套 README.md 使用。约定：括号内为命令作用；✅ = 成功判据；❌ = 异常判据与含义。  
 > 铁律：报错时保留原始输出（截图/日志）供复盘，不自行修改代码与配置。  
+> **v2.0 提示**：Phase 2-3 的手工步骤已被 `deploy/bootstrap.sh`（幂等、可 `DRY_RUN=1`）收敛；本手册保留逐条判据与排障信息。改动 `src/`、`knowledge/rules.json`、`data/vulns.json` 后须评审并运行 `python3 tools/pin_integrity.py`（R-INT-01）。
 > 粘贴纪律：**只粘贴命令本身，行尾括号注释与以 ( 开头的说明一律不要一起粘贴**——变量赋值行尤其如此。
 
 ## Phase 2 上传 + 靶场上线
 
-**本阶段目标**：v2 代码包上服务器；vulnlab 三态靶场以 systemd 服务运行、仅内网可达。靶场是考核金标准「区分实际修复与表层变更」的载体（三态：盲注未修复 / XSS 表层变更 / 越权已修复）。
+**本阶段目标**：v2 代码包上服务器；vulnlab 靶场以 systemd 服务运行、仅内网可达。靶场是考核金标准「区分实际修复与表层变更」的载体（默认状态：盲注未修复 / XSS 表层变更 / 伪造凭据越权已修复 / IDOR 未修复；每个漏洞可用 `VULNLAB_STATE` 切换修复状态）。
 
 **第 0 步（Mac 上）设置连接变量**——以下两行是纯赋值行，替换真实值后逐行粘贴：
 
@@ -56,7 +57,7 @@ cd ~/agent-assessment && ls         (确认新文件落位)
 wc -l src/pipeline.py               (确认 pipeline 非空——防止旧版空文件误传)
 ```
 
-- ✅ ≥ 200 行（下限用于拦截旧版空文件误传；本提交 `wc -l src/pipeline.py` 实测 327 行）
+- ✅ ≥ 150 行（下限只用于拦截空文件/旧版误传；v2.0 的 `pipeline.py` 已拆分，判定器在 `src/judges.py`，实际行数以 `wc -l src/*.py` 为准）
 - ❌ 0 行 = 传的是旧包，重传
 
 ```bash
@@ -140,27 +141,29 @@ cd ~/agent-assessment && ac up                            (重新应用项目—
 
 ## Phase 4 全链路一轮
 
-**本阶段目标**：Agent 完整执行一次「触发→取数→判定→产出→留痕」闭环（考核 5.1.1），并四验证据链（报告 / 证据目录 / 网关审计 / 靶场日志交叉对账）。金标准预期：盲注 VULNERABLE、XSS SURFACE_PATCH、越权 PATCHED。
+**本阶段目标**：Agent 完整执行一次「触发→取数→判定→产出→留痕」闭环（考核 5.1.1），并四验证据链（报告 / 证据目录 / 网关审计 / 靶场日志交叉对账）。金标准预期：盲注 VULNERABLE、XSS SURFACE_PATCH、越权（伪造凭据）PATCHED、IDOR VULNERABLE（需 `RETEST_SESSION_A/B`，缺失则 INCONCLUSIVE/MISSING_CREDENTIALS）。
 
-**前置（v1.1 修订）**：agent-compose.yml 的 workspace 默认 `mode: copy`（快照）——运行期写出的 outputs/、evidence/ 只存在容器内，宿主机不可见。必须加 `mode: mount`（provider file + docker driver 才支持，源码 pkg/model/workspace_mode.go）并 `ac up` 重建后，报告与证据才落宿主机。若 Phase 4 首跑后 `cat outputs/report.json` 报 No such file，即此原因。
+**前置（v2.0 修订）**：agent-compose.yml 的 workspace 默认 `mode: copy`（快照），产物只存在容器内。v2.0 使用 `mode: mount` + `read_only: true` 把**代码目录只读**挂入 guest（上游手册 §workspace；要求 Docker Engine API 1.44+、Linux 内核 5.12+，不满足时 `ac up` 会明确失败），运行数据写入 bind 目录：guest 内 `/var/lib/retest` ↔ 宿主机 `<项目>/runtime`（先 `mkdir -p runtime`，`deploy/bootstrap.sh` 已包含）。因此**报告与证据在宿主机的 `runtime/outputs/`、`runtime/evidence/`**，不再是项目根下的 `outputs/`、`evidence/`；宿主机直接运行 `python3 src/pipeline.py` 时若要写同一位置，设置 `RETEST_DATA_DIR=<项目>/runtime`。若首跑后 `cat runtime/outputs/report.json` 报 No such file，先 `ls runtime/` 与 `ac logs` 排查。
 
 ```bash
-cd ~/agent-assessment && ac run reviewer --prompt "读取 data/vulns.json 与 knowledge/01_rules.md，执行 python3 src/pipeline.py 完成三条历史漏洞的复测，阅读 outputs/report.json，撰写 outputs/summary.md 结论摘要。禁止自行估算任何数值。"   (完整复测一轮)
+cd ~/agent-assessment && ac run reviewer --prompt "执行 python3 src/pipeline.py，然后读取 outputs/changes.json；needs_attention 为 false 只回复一行 NO_CHANGE，为 true 则撰写 outputs/interpretation.md。禁止自行估算任何数值。"   (完整复测一轮；首轮所有漏洞都是 new，needs_attention=true)
 ```
 
-- ✅ agent 正常结束且叙述中引用报告数值
+- ✅ agent 正常结束；`outputs/summary.md` 由代码生成（不是 LLM 写的），`interpretation.md` 里的数值都能在 report.json 中找到
 - ❌ 模型报错/超时 = 截回；agent 试图自己算数值并输出 = system_prompt 红线生效异常，截回
 
 ```bash
-cat outputs/report.json | python3 -m json.tool    (判定报告)
+cat outputs/summary.md                            (确定性摘要)
+cat outputs/report.json | python3 -m json.tool    (判定报告；integrity.status 应为 OK)
+cat outputs/changes.json                          (相对上一轮的变化与 needs_attention)
 ls evidence/                                      (每轮一个 run_id 目录)
 ls evidence/<最新run_id>/                          (证据明细)
 docker exec octobus octobus logs --capset retester --tail 10   (网关审计)
 sudo tail -10 /var/log/vulnlab.log                (靶场访问日志)
 ```
 
-- ✅ 四验全过：① report 三漏洞判定符合金标准预期；② 证据目录有 probe\_*.json 与 octobus_calls.log；③ 网关访问日志按同窗口条数与 calls.log 对齐（calls.log 7 条 ↔ 网关 7 条；网关访问日志不携带 business-request-id，该 ID 仅存于 calls.log）；④ 靶场同窗口 6 条探针记录全部带 `octobus-retest-probe`（比 calls.log 少 1 条，差额为不落靶场的 calculator Subtract），且该窗口内无 direct-or-other
-- ❌ 出现 INCONCLUSIVE = 看 report 中 transport_errors/reason 字段定位（网关失败/探针打偏各自有明确原因码）；靶场日志**新增** direct-or-other（不在此前已知白名单内）且源 IP 属 guest（`172.18.0.x`）才是绕过网关直连，立即回报；已知白名单：部署期 4 笔来自宿主机 `172.30.158.34`（3 笔 `/healthz` + 1 笔人工测试），属正常，不告警
+- ✅ 四验全过：① report 四漏洞判定符合金标准预期；② 证据目录有 probe\_*.json 与 octobus_calls.log；③ 网关访问日志按同窗口条数与 calls.log 对齐（v2 每轮无重试时 calls.log 15 条 ↔ 网关 15 条，v2.1 起瞬时故障重试会多出 `attempt>1` 的行，对账时按 `attempt` 区分；v1.0 历史轮次为 7 条；网关访问日志不携带 business-request-id，该 ID 仅存于 calls.log）；④ 靶场同窗口 14 条探针记录全部带 `octobus-retest-probe`（比 calls.log 少 1 条，差额为不落靶场的 calculator Subtract），且该窗口内无 direct-or-other
+- ❌ 出现 INCONCLUSIVE = 看 report 中 `metrics.reason_code`（TRANSPORT / TRUNCATED / STATUS_MISMATCH / BASELINE_* / UNSTABLE / CONTROL_FAILED / MISSING_CREDENTIALS …）与 `transport_errors` 枚举码定位；错误原文只在 `evidence/<run_id>/probe_*.json`；`FATAL R-INT-01` = 判定代码清单与带外固定值不一致，**不要让 Agent 自行修复**，先在宿主机 `python3 tools/verify_integrity.py` 查看 `changed_files`；靶场日志**新增** direct-or-other（不在此前已知白名单内）且源 IP 属 guest（`172.18.0.x`）才是绕过网关直连，立即回报；已知白名单：部署期 4 笔来自宿主机 `172.30.158.34`（3 笔 `/healthz` + 1 笔人工测试），属正常，不告警
 - ❌ report 中 T1 INCONCLUSIVE 且 transport_errors 含 calculator Subtract 调用失败（2026-09-30 实锤修复）：预置 calculator 包**声明面有 Subtract（proto/service list）但运行时 handler 只注册 Add**（P-09 三层对齐）。修复走**运行时热补丁**（import 同 id upsert 路线被示例包白名单暗桩 importer.go:570「repo root with sdk package not found」判死）：① 从 .bak 重建同风格裸 gRPC 入口（@grpc/grpc-js + proto-loader，含 Health/SERVING），仅新增 subtract handler + 注册；② **入口文件首行必须 shebang**（hardening.go:126 "Runtime entries are shebang scripts"，无 node 兜底）+ chmod 755；③ 服务定义解析用防御式双通道（标准命名空间路径 + 结果树深搜 `.service` 兜底），对库版本行为差异免疫；④ 四层验证：`node --check`（对落位后 .js，勿用 .patched 扩展名）→ `instance restart` health check → `tail stderr.log`（supervisor.go:291 落盘 DataDir/instances/<id>/stderr.log）→ curl 实弹重放期望 `"result":250` + 200。详见 knowledge/03_pitfalls.md P-09/P-10
 
 **完成标志**：四验闭环全绿。**衔接**：证据固化 → Phase 5 自检与自愈实测。

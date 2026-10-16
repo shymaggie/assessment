@@ -1,0 +1,15 @@
+# 宿主机侧告警外发：读取 outputs/alerts.jsonl 新增行并 POST 到 Webhook（见 tools/notify.py）。
+# 与完整性复核同批执行：先 verify_integrity（带外固定值），再外发告警。
+# 配置：在 /etc/retest/notify.env 写入
+#   RETEST_ALERT_WEBHOOK=https://...
+#   RETEST_PINNED=<tools/pin_integrity.py 输出的摘要，带外保存>
+[Unit]
+Description=Retest alert notifier + integrity check
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/agentadmin/agent-assessment
+Environment=RETEST_DATA_DIR=/home/agentadmin/agent-assessment/runtime
+EnvironmentFile=/etc/retest/notify.env
+ExecStart=/bin/sh -c 'python3 tools/verify_integrity.py --pinned "$RETEST_PINNED" >/dev/null; rc=$?; python3 tools/notify.py; exit $rc'
+User=agentadmin
